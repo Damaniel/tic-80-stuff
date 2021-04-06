@@ -1,0 +1,106 @@
+Notes:
+
+--------------------------------------------------------------------------------
+About the level format encoded in each string:
+--------------------------------------------------------------------------------
+The format is based on an ASCII representation I was using in my Move-It, Man!
+level file.  Each level was specified as a block containing size, target time
+and moves, and the level itself.  For reference, this is level 1 from MIM:
+
+1 10            - level number, number of lines of level data
+9 9 30 120      - width, height, target time, target moves
+#####XXXX       - row 1 of level data
+#@  #XXXX       - row 2 of level data
+# $$#X###       - ...and so on
+# $ #X#.#
+### ###.#       Legend:
+X##    .#         # - wall
+X#   #  #         @ - player's starting position
+X#   ####         $ - box starting position
+X#####XXX         . - target location
+                  X - non-level area (row padding)
+                    - empty space
+                  * - starting position of a box sitting on a target location
+
+In this version of the game, rather than having a bunch of blocks as walls,
+the walls are a single solid mass, so each wall segment may have one or more
+sides chopped off of it to connect walls together.  
+
+For example:
+
+Before:             After:
+ --  --  --          ----------
+|  ||  ||  |        |          |
+ --  --  --         |   -------
+ --                 |  |
+|  |                |  |
+ --                  --
+
+This necessitates that each wall in the level be selected from a set of tiles
+that cut off the appropriate sides.  Rather than wasting code space trying to
+write a heuristic that picks the correct tile based on adjacent tiles, each
+level will encode its own correct tile arrangement using the table below,
+used in conjunction with wall tiles arranged sequentially in tile memory.
+
+a - wall (closed)
+b - wall (open bottom)
+c - wall (open right)
+d - wall (open top)
+e - wall (open left)
+f - wall (open top, left)
+g - wall (open bottom, left)
+h - wall (open bottom, right)
+i - wall (open top, right)
+j - wall (open left, right)
+k - wall (open top, bottom)
+l - wall (open top, left, right)
+m - wall (open top, right, bottom)
+n - wall (open right, bottom, left)
+o - wall (open bottom, left, top)
+p - wall (fully open)
+
+With this encoding, the level data for the above example level would be:
+
+1 10
+9 9 30 120
+hjjjgXXXX
+k@  kXXXX
+k $$kXhjg
+k $ kXk.k
+ing ijf.k
+Xmf    .k
+Xk   b  k
+Xk   mjjf
+XijjjfXXX
+
+And when placed into a Lua table, looks like this (lines are truncated to fit
+80 characters here, but are full length in the editor):
+
+{9, 9, 30, 120,
+"hjjjgXXXXk@  kXXXXk $$kXhjgk $ kXk.king ijf.kXmf    .kXk   b  kXk   mjjfX\
+ ijjjfXXX"}
+
+--------------------------------------------------------------------------------
+about the g_state variable
+--------------------------------------------------------------------------------
+
+g_state holds the global state for the current level.  This includes the level 
+data, object positions, turn count and elapsed time.  A summary of the items in 
+the table is shown below:
+
+{   
+    "l": <level number>
+    "w": <width>,
+    "h": <height>,
+    "tm": <target moves>,
+    "tt": <target time>,
+    "lv": {<level data in WxH string>}},
+    "bx": {<current box locations as pairs of ints>},
+    'tg': {<target locations as pairs of ints>}
+    "p": {<player location as pair of ints>}
+    "nt": <number of targets>
+    "ot": <number of boxes on targets>
+    "t": <number of turns used>
+    "et": <elapsed time>
+    "pd": <player direction - 0=right,1=down,2=left,3=up>
+}
