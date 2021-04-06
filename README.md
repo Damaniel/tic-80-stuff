@@ -16,6 +16,6 @@ The workflow I use is to only edit graphics and sound data in TIC-80, and only u
 So, my work will generally consist of making changes in my editor, sending the script back to the cart directory, test, repeat.  If I have to make changes to the graphics, I just send the updated script back from the cart directory to the repo, which keeps the annotated code and updated graphics together. **Note**: This setup doesn't copy changed *code* back from the cart directory to the repo, but that's acceptable - I only make code changes from an external editor anyway.  Just an FYI.
 
 ## License
-All code is licensed under the MIT License.  See LICENSE.md for the license text.
+All code is licensed under the MIT License.  See LICENSE for the license text.
 
 
