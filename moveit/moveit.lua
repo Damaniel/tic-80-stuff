@@ -3,12 +3,19 @@
 -- desc:   A small Sokoban clone
 -- script: lua
 
--- max level size = 20x17
+-- Contains all of the level data.  See notes.txt for details about the format.
 g_levs={
  {9,9,30,120,'hjjjgXXXXk@  kXXXXk $$kXhjgk $ kXk.king ijf.kXmf    .kXk   b  kXk   mjjfXijjjfXXX'}
 }
 g_state={}
 
+--------------------------------------------------------------------------------
+-- loadlevel
+--
+-- Loads and parses a level from the g_levs table.  Places the resulting data
+-- into the g_state object so it can be used in other parts of the game.
+-- See notes.txt for a list of the fields in g_state.
+--------------------------------------------------------------------------------
 function loadlevel(l_num)
   g_state.l=l_num
   g_state.w=g_levs[l_num][1]
@@ -23,65 +30,111 @@ function loadlevel(l_num)
   g_state.t=0
   g_state.et=0	
   g_state.pd=0
+  -- Iterate through the string in row order
   for y=1, g_state.h do
     for x=1, g_state.w do
       off=(y-1)*g_state.w+x
       c=string.sub(g_levs[l_num][5],off,off)
       if c=="@" then
+        -- If the player position is found, initialize it and place an empty space
+        -- in the level data
         g_state.p={x,y}
         table.insert(g_state.lv,' ')
       elseif c=="$" then
+        -- If a box is found, add it to the list of boxes and place an empty space
+        -- in the level data
         table.insert(g_state.bx,{x,y})
         table.insert(g_state.lv,' ')
       elseif c=="." then
+        -- If a target square is found, add it to the list of targets and
+        -- place the target in the level data
         table.insert(g_state.tg,{x,y})
         table.insert(g_state.lv,c)
       elseif c=="*" then
+        -- If a box on a target is found, add the box and target to their
+        -- respective lists and place the target in the level data
         table.insert(g_state.bx,{x,y})
         table.insert(g.state.tg,{x,y})
         table.insert(g_state,lv,'.')
       else
+        -- Otherwise, just keep the level data as-is
         table.insert(g_state.lv,c)
       end
     end
   end
 end
 
+--------------------------------------------------------------------------------
+-- render_level
+--
+-- Updates the tile map to place the static elements of the level into the
+-- tile map, and then draws the appropriate region to the screen.
+--------------------------------------------------------------------------------
 function render_level()
+  -- Put the background tile into the correct regions of the screen
   for x=0,19 do
     for y=0,16 do
       mset(x,y,4)
     end
   end
 
+  -- Find the center of the area designated for the level.  The area is 20x17,
+  -- so things won't be 100% centered, but any level up to 20x17 should fit.
   lv_x=10-(g_state.w/2)
-  lv_y=9-(g_state.h/2)
+  lv_y=8-(g_state.h/2)
 				
+  -- Iterate through the level data
   for y=1,g_state.h do
     for x=1,g_state.w do
+      -- Find the offset into the string (the -1 is to account for 1-based
+      -- lua arrays.  Why, Lua?).  Get the ASCII value of the character
       off=(y-1)*g_state.w+x
       b=string.byte(g_state.lv[off])						
       if b>=97 and b<=111 then
+        -- If the character falls between a and p (97 and 112), subtract 97
+        -- and use the remainder as an index into the tilemap for the appropriate
+        -- wall tile (they're held in indices 16-31)
         mset(lv_x+x-1,lv_y+y-1,16+(b-97))
       elseif b==32 then
+        -- If the character is a space, draw a floor tile
         mset(lv_x+x-1,lv_y+y-1,3)
       elseif b==46 then
+        -- If the characeter is a target square, draw the target tile.
         mset(lv_x+x-1,lv_y+y-1,2)
       end
     end
   end
-  map(0,0,30,17)		
+  -- render the appropriate part of the tile map to the screen
+  map(0,0,30,17)		 
 end
 
+--------------------------------------------------------------------------------
+-- render_sprites
+--
+-- Draws the non-static elements of the screen - this includes the player
+-- and boxes.
+--------------------------------------------------------------------------------
 function render_sprites()
+  -- Find the center of the area designated for the level.  The area is 20x17,
+  -- so things won't be 100% centered, but any level up to 20x17 should fit.
   lv_x=10-(g_state.w/2)
-  lv_y=9-(g_state.h/2)
+  lv_y=8-(g_state.h/2)
+
+  -- Draw the boxes.  Note the (8*x-4) values - this is to ensure that the 
+  -- pixel offsets on the screen are correct.
   for x=1,#g_state.bx do
-  spr(256,8*(lv_x+g_state.bx[x][1]-1)-4,8*(lv_y+g_state.bx[x][2]-1)-4,0)
+    spr(256,8*(lv_x+g_state.bx[x][1]-1)-4,8*(lv_y+g_state.bx[x][2]-1)-4,0)
   end		
+  -- Draw the player.  Uses g_state.pd to draw the appropriate direction of
+  -- the player sprite.
   spr(257+g_state.pd,8*(lv_x+g_state.p[1]-1)-4,8*(lv_y+g_state.p[2]-1)-4,0)
 end
 
+--------------------------------------------------------------------------------
+-- process_move
+--
+-- Handles input.
+--------------------------------------------------------------------------------
 function process_move()
   if keyp(58) then
     g_state.p[2]=g_state.p[2]-1
@@ -105,6 +158,8 @@ function TIC()
 end
 
 loadlevel(1)
+-- END
+
 -- <TILES>
 -- 002:bbbbbbbbbbbbbbbbbb0bb0bbbbb00bbbbbb00bbbbb0bb0bbbbbbbbbbbbbbbbbb
 -- 003:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
