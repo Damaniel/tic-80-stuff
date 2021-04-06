@@ -4,11 +4,6 @@
 # it, other than the required header lines and data.  This allows the original 
 # source to be fully annotated while removing the excess characters from the 
 # version that gets sent to the TIC-80 cart directory.
-#
-# One note - since TIC-80 embeds image and sound data in Lua comments at the
-# end of the file, you'll need to add the comment '-- END' just past the last
-# line of your script.  Once this tool encounters that line it will quit
-# stripping further lines and pass them through
 import sys, os
 
 if len(sys.argv) < 3:
@@ -43,9 +38,11 @@ for line in lines:
     if do_strip == False:
       # If we're allowing comments through, do it
       outlines.append(line)
-    if line.strip() == '-- END' or line.strip() == '--END':
-      # If we run into -- END, stop stripping further.
+    if line.startswith('-- <TILES>'):
+      # If we run into the first line of the media data, stop stripping further.
+      # Note that this line needs to be written to the file too.
       do_strip = False
+      outlines.append(line)
     # Do nothing if neither of the above are true.
   else:
     # Check for any inline comments in the line and remove them
