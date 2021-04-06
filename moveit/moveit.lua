@@ -33,6 +33,8 @@ function loadlevel(l_num)
   -- Iterate through the string in row order
   for y=1, g_state.h do
     for x=1, g_state.w do
+      -- Find the character in the string corresponding to the level position
+      -- at (x,y)
       off=(y-1)*g_state.w+x
       c=string.sub(g_levs[l_num][5],off,off)
       if c=="@" then
@@ -96,10 +98,10 @@ function render_level()
         -- wall tile (they're held in indices 16-31)
         mset(lv_x+x-1,lv_y+y-1,16+(b-97))
       elseif b==32 then
-        -- If the character is a space, draw a floor tile
+        -- If the character is a space, set a floor tile
         mset(lv_x+x-1,lv_y+y-1,3)
       elseif b==46 then
-        -- If the characeter is a target square, draw the target tile.
+        -- If the characeter is a target square, set a target tile.
         mset(lv_x+x-1,lv_y+y-1,2)
       end
     end
@@ -158,8 +160,6 @@ function TIC()
 end
 
 loadlevel(1)
--- END
-
 -- <TILES>
 -- 002:bbbbbbbbbbbbbbbbbb0bb0bbbbb00bbbbbb00bbbbb0bb0bbbbbbbbbbbbbbbbbb
 -- 003:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
