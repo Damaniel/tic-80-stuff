@@ -15,6 +15,18 @@ g_state={}
 -- Loads and parses a level from the g_levs table.  Places the resulting data
 -- into the g_state object so it can be used in other parts of the game.
 -- See notes.txt for a list of the fields in g_state.
+--
+-- Note: The Lua 1-based tables make sorting out values difficult when most
+-- languages used 0-based arrays.  This function uses a source string with
+-- a 1-based index, and the destination tables will also be 1-based, but the
+-- (x,y) coordinates saved will be 0-based.
+--
+-- 1-based:
+--   g_levs
+--   g_levs[5]
+--   g_state.lv, g_state.bx, g_state.tg
+-- 0-based:
+--   x, y
 --------------------------------------------------------------------------------
 function loadlevel(l_num)
   g_state.l=l_num
@@ -31,11 +43,11 @@ function loadlevel(l_num)
   g_state.et=0	
   g_state.pd=0
   -- Iterate through the string in row order
-  for y=1, g_state.h do
-    for x=1, g_state.w do
+  for y=0, g_state.h-1 do
+    for x=0, g_state.w-1 do
       -- Find the character in the string corresponding to the level position
       -- at (x,y)
-      off=(y-1)*g_state.w+x
+      off=(y)*g_state.w+x+1
       c=string.sub(g_levs[l_num][5],off,off)
       if c=="@" then
         -- If the player position is found, initialize it and place an empty space
@@ -67,6 +79,19 @@ function loadlevel(l_num)
 end
 
 --------------------------------------------------------------------------------
+-- get_ul
+--
+-- Gets the position on the screen's tilemap that corresponds to where the
+-- upper left corner of the level is.  The level is always (roughly) centered
+-- on the screen.
+--------------------------------------------------------------------------------
+function get_ul()
+  lv_x=10-(g_state.w/2)
+  lv_y=8-(g_state.h/2)
+  return lv_x, lv_y
+end
+
+--------------------------------------------------------------------------------
 -- render_level
 --
 -- Updates the tile map to place the static elements of the level into the
@@ -82,27 +107,26 @@ function render_level()
 
   -- Find the center of the area designated for the level.  The area is 20x17,
   -- so things won't be 100% centered, but any level up to 20x17 should fit.
-  lv_x=10-(g_state.w/2)
-  lv_y=8-(g_state.h/2)
+  lv_x,lv_y=get_ul()
 				
   -- Iterate through the level data
-  for y=1,g_state.h do
-    for x=1,g_state.w do
+  for y=0,g_state.h-1 do
+    for x=0,g_state.w-1 do
       -- Find the offset into the string (the -1 is to account for 1-based
       -- lua arrays.  Why, Lua?).  Get the ASCII value of the character
-      off=(y-1)*g_state.w+x
+      off=y*g_state.w+x+1
       b=string.byte(g_state.lv[off])						
       if b>=97 and b<=111 then
         -- If the character falls between a and p (97 and 112), subtract 97
         -- and use the remainder as an index into the tilemap for the appropriate
         -- wall tile (they're held in indices 16-31)
-        mset(lv_x+x-1,lv_y+y-1,16+(b-97))
+        mset(lv_x+x,lv_y+y,16+(b-97))
       elseif b==32 then
         -- If the character is a space, set a floor tile
-        mset(lv_x+x-1,lv_y+y-1,3)
+        mset(lv_x+x,lv_y+y,3)
       elseif b==46 then
         -- If the characeter is a target square, set a target tile.
-        mset(lv_x+x-1,lv_y+y-1,2)
+        mset(lv_x+x,lv_y+y,2)
       end
     end
   end
@@ -119,17 +143,34 @@ end
 function render_sprites()
   -- Find the center of the area designated for the level.  The area is 20x17,
   -- so things won't be 100% centered, but any level up to 20x17 should fit.
-  lv_x=10-(g_state.w/2)
-  lv_y=8-(g_state.h/2)
+  lv_x,lv_y=get_ul()
 
   -- Draw the boxes.  Note the (8*x-4) values - this is to ensure that the 
   -- pixel offsets on the screen are correct.
   for x=1,#g_state.bx do
-    spr(256,8*(lv_x+g_state.bx[x][1]-1)-4,8*(lv_y+g_state.bx[x][2]-1)-4,0)
+    spr(256,8*(lv_x+g_state.bx[x][1])-4,8*(lv_y+g_state.bx[x][2])-4,0)
   end		
   -- Draw the player.  Uses g_state.pd to draw the appropriate direction of
   -- the player sprite.
-  spr(257+g_state.pd,8*(lv_x+g_state.p[1]-1)-4,8*(lv_y+g_state.p[2]-1)-4,0)
+  spr(257+g_state.pd,8*(lv_x+g_state.p[1])-4,8*(lv_y+g_state.p[2])-4,0)
+end
+
+--------------------------------------------------------------------------------
+-- is_wall
+--
+-- Determines whether the specified location is a wall or not.
+--------------------------------------------------------------------------------
+function is_wall(x,y)
+  -- Get the upper left position of the level
+  lv_x, lv_y=get_ul()
+
+  -- get the tile at (x,y) relative to the upper left
+  tile=mget(lv_x+x,lv_y+y)
+  -- The tiles with indices 16-31 are the wall tiles
+  if tile>=16 and tile <=31 then
+    return true
+  end
+  return false
 end
 
 --------------------------------------------------------------------------------
@@ -138,18 +179,25 @@ end
 -- Handles input.
 --------------------------------------------------------------------------------
 function process_move()
+  c_x=g_state.p[1]
+  c_y=g_state.p[2]
   if keyp(58) then
-    g_state.p[2]=g_state.p[2]-1
+    c_y=c_y-1
     g_state.pd=3
   elseif keyp(59) then
-    g_state.p[2]=g_state.p[2]+1
+    c_y=c_y+1
     g_state.pd=1
   elseif keyp(60) then
-    g_state.p[1]=g_state.p[1]-1
+    c_x=c_x-1
     g_state.pd=2
   elseif keyp(61) then
-    g_state.p[1]=g_state.p[1]+1
+    c_x=c_x+1
     g_state.pd=0
+  end
+  -- Prevent movement into a wall
+  if is_wall(c_x, c_y) == false then
+     g_state.p[1]=c_x
+     g_state.p[2]=c_y
   end
 end
 
@@ -181,6 +229,7 @@ loadlevel(1)
 -- 028:3a7777a33a7777aa3a7777773a7777773a7777773a7777773a7777aa3a7777a3
 -- 029:33333333aaaaaaaa77777777777777777777777777777777aa7777aa3a7777a3
 -- 030:3a7777a3aa7777a3777777a3777777a3777777a3777777a3aa7777a33a7777a3
+-- 031:3a7777a3aa7777aa77777777777777777777777777777777aa7777aa3a7777a3
 -- 032:0055555505bbbbbb5bbbbbbb5bbb55555bb500005bb500005bb500005bb50000
 -- 033:5bb500005bb500005bb500005bb500005bb500005bb500005bb500005bb50000
 -- 034:5bb500005bb500005bb500005bb500005bbb55555bbbbbbb05bbbbbb00555555
