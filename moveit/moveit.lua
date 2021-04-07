@@ -64,6 +64,7 @@ function loadlevel(l_num)
         -- place the target in the level data
         table.insert(g_state.tg,{x,y})
         table.insert(g_state.lv,c)
+        g_state.nt=g_state.nt+1
       elseif c=="*" then
         -- If a box on a target is found, add the box and target to their
         -- respective lists and place the target in the level data
@@ -86,8 +87,8 @@ end
 -- on the screen.
 --------------------------------------------------------------------------------
 function get_ul()
-  lv_x=10-(g_state.w/2)
-  lv_y=8-(g_state.h/2)
+  lv_x=10-math.floor(g_state.w/2)
+  lv_y=8-math.floor(g_state.h/2)
   return lv_x, lv_y
 end
 
@@ -112,13 +113,12 @@ function render_level()
   -- Iterate through the level data
   for y=0,g_state.h-1 do
     for x=0,g_state.w-1 do
-      -- Find the offset into the string (the -1 is to account for 1-based
-      -- lua arrays.  Why, Lua?).  Get the ASCII value of the character
+      -- Find the offset into the string.  Get the ASCII value of the character
       off=y*g_state.w+x+1
       b=string.byte(g_state.lv[off])						
       if b>=97 and b<=111 then
-        -- If the character falls between a and p (97 and 112), subtract 97
-        -- and use the remainder as an index into the tilemap for the appropriate
+        -- If the character falls between a and p (97 and 112), subtract 97 and
+        -- use the remainder as an index into the tilemap for the appropriate
         -- wall tile (they're held in indices 16-31)
         mset(lv_x+x,lv_y+y,16+(b-97))
       elseif b==32 then
@@ -145,14 +145,12 @@ function render_sprites()
   -- so things won't be 100% centered, but any level up to 20x17 should fit.
   lv_x,lv_y=get_ul()
 
-  -- Draw the boxes.  Note the (8*x-4) values - this is to ensure that the 
-  -- pixel offsets on the screen are correct.
   for x=1,#g_state.bx do
-    spr(256,8*(lv_x+g_state.bx[x][1])-4,8*(lv_y+g_state.bx[x][2])-4,0)
+    spr(256,8*(lv_x+g_state.bx[x][1]),8*(lv_y+g_state.bx[x][2]),0)
   end		
   -- Draw the player.  Uses g_state.pd to draw the appropriate direction of
   -- the player sprite.
-  spr(257+g_state.pd,8*(lv_x+g_state.p[1])-4,8*(lv_y+g_state.p[2])-4,0)
+  spr(257+g_state.pd,8*(lv_x+g_state.p[1]),8*(lv_y+g_state.p[2]),0)
 end
 
 --------------------------------------------------------------------------------
@@ -174,37 +172,136 @@ function is_wall(x,y)
 end
 
 --------------------------------------------------------------------------------
--- process_move
+-- is_target
+--
+-- Determines whether the specified location is a target square
+--------------------------------------------------------------------------------
+function is_target(x,y)
+  for i=1,#g_state.tg do
+    if g_state.tg[i][1]==x and g_state.tg[i][2]==y then
+      return true
+    end
+  end
+  return false
+end
+
+--------------------------------------------------------------------------------
+-- is_box
+--
+-- Determines whether the specified location contains a box or not
+--------------------------------------------------------------------------------
+function is_box(x,y)
+  for i=1,#g_state.bx do
+    if g_state.bx[i][1]==x and g_state.bx[i][2]==y then
+      return true
+    end
+  end
+  return false
+end
+
+--------------------------------------------------------------------------------
+-- move_box
+--
+-- Moves a box from (sx,sy) to (dx,dy).  Updates the box structure with the
+-- new box location, and updates the number of boxes placed on targets.
+--------------------------------------------------------------------------------
+function move_box(sx, sy, dx, dy)
+  for i=1,#g_state.bx do
+    if g_state.bx[i][1]==sx and g_state.bx[i][2]==sy then
+      -- If the box is currently on a target, reduce the target count by 1
+      if is_target(sx,sy)==true then
+        g_state.ot=g_state.ot-1
+      end
+      g_state.bx[i][1]=dx
+      g_state.bx[i][2]=dy
+      -- If the box is now on a target, increase the target count by 1
+      if is_target(dx,dy)==true then
+        g_state.ot=g_state.ot+1
+      end
+      moved=true
+    end
+  end
+end
+
+--------------------------------------------------------------------------------
+-- process_input
 --
 -- Handles input.
 --------------------------------------------------------------------------------
-function process_move()
+function process_input()
+  -- c_x and c_y are the candidate movement location for the player based on
+  -- the button they pressed
+  -- b_x and b_y are the position beyond that in the same direction.  This
+  -- will be used if a player pushes into a box that may or may not itself move
+  -- depending on what's behind it.
+  --
+  -- Algorithm for movement key processing:
+  --  - get the keypress
+  --  - If a movement key was pressed:
+  --    - set the candidate location to the adjacent spot in that direction
+  --    - set the beyond location to one additional spot beyond that
+  --    - If the candidate location is a wall, don't move.
+  --    - If the candidate location has a box, then check the beyond space.
+  --      - If the space beyond is empty, move the player and the box
+  --      - If the space beyond is a wall or another box, don't move
+  --    - If the candidate location is empty, move the player.
   c_x=g_state.p[1]
   c_y=g_state.p[2]
-  if keyp(58) then
+  b_x=g_state.p[1]
+  b_y=g_state.p[2]
+  movekey = false
+
+  if keyp(58) then      -- Up key
     c_y=c_y-1
+    b_y=c_y-1
     g_state.pd=3
-  elseif keyp(59) then
+    movekey=true
+  elseif keyp(59) then  -- Down key
     c_y=c_y+1
+    b_y=c_y+1
     g_state.pd=1
-  elseif keyp(60) then
+    movekey=true
+  elseif keyp(60) then  -- Left key
     c_x=c_x-1
+    b_x=c_x-1
     g_state.pd=2
-  elseif keyp(61) then
+    movekey=true
+  elseif keyp(61) then  -- Right key
     c_x=c_x+1
+    b_x=c_x+1
     g_state.pd=0
+    movekey=true
   end
-  -- Prevent movement into a wall
-  if is_wall(c_x, c_y) == false then
-     g_state.p[1]=c_x
-     g_state.p[2]=c_y
+
+  if movekey==true then    
+    if is_wall(c_x,c_y)==false then
+      if is_box(c_x,c_y)==true then
+        if is_wall(b_x,b_y)==false and is_box(b_x,b_y)==false then
+          move_box(c_x,c_y,b_x,b_y)
+          g_state.p[1]=c_x
+          g_state.p[2]=c_y
+          level_done()
+        end
+      else
+        g_state.p[1]=c_x
+        g_state.p[2]=c_y
+      end
+    end
   end
+end
+
+function level_done()
+  if g_state.nt == g_state.ot then
+    trace("Done!")
+    return true
+  end
+  return false
 end
 
 function TIC()
   render_level()
   render_sprites()		
-  process_move()
+  process_input()
 end
 
 loadlevel(1)
